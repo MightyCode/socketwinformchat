@@ -14,6 +14,7 @@ namespace Chat
         [STAThread]
         static void Main()
         {
+            Console.WriteLine(DateTime.Now);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm());

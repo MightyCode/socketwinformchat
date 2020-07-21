@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Chat
 {
-    class TestClient
+    class Client
     {
         public static int BUFFER_SIZE = 4096;
         bool IsConnected;
@@ -16,17 +16,24 @@ namespace Chat
         private byte[] receiveBuffer;
         private NetworkStream stream;
 
-        Action<string> receivedMessageMethod;
-        Action serverDisconnect;
+        Action<NetMessage> receivedMessage;
+        Action<NetMessage> serverDisconnect;
 
-        public TestClient(Action<string> receivedMessageMethod, Action serverDisconnect)
+        public Client()
         {
             IsConnected = false;
-            this.receivedMessageMethod = receivedMessageMethod;
+        }
+
+
+        public void InquireFunctions(Action<NetMessage> receivedMessage,
+            Action<NetMessage> serverDisconnect)
+        {
+
+            this.receivedMessage = receivedMessage;
             this.serverDisconnect = serverDisconnect;
         }
 
-        ~TestClient()
+        ~Client()
         {
             if (IsConnected) Stop();
         }
@@ -57,18 +64,17 @@ namespace Chat
 
                 byte[] data = new byte[byteLenght];
                 Array.Copy(receiveBuffer, data, byteLenght);
+                NetMessage message = new NetMessage(Encoding.UTF8.GetString(data, 0, byteLenght));
 
-                string message = Encoding.UTF8.GetString(data, 0, byteLenght);
-
-                if (message.Equals("#!stop!#"))
+                if (message.MessageEquals("#!stop!#"))
                 {
-                    serverDisconnect();
+                    serverDisconnect(message);
                     stream.Close();
                     socket.Close();
                     IsConnected = false;
                 }
                 else { 
-                    receivedMessageMethod(message);
+                    receivedMessage(message);
                     stream.BeginRead(receiveBuffer, 0, BUFFER_SIZE, MessageReceived, null);
                 }
             }
@@ -82,7 +88,9 @@ namespace Chat
         {
             if (!IsConnected) return;
 
-            byte[] data = Encoding.UTF8.GetBytes(message);
+            NetMessage mes = new NetMessage(ServerClientUtils.GetLocalIPAddress() + "#" + DateTime.Now + "#" + message);
+            Console.WriteLine("send" + mes);
+            byte[] data = mes.ToByteArrayUTF8();
             stream.Write(data, 0, data.Length);
         }
 

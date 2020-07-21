@@ -13,8 +13,8 @@ namespace Chat
     public partial class MainForm : Form
     {
         int mode;
-        TestClient client;
-        TestServer server;
+        Client client;
+        ServerClient server;
 
         public MainForm()
         {
@@ -26,7 +26,8 @@ namespace Chat
         {
             if (mode == 0)
             {
-                server = new TestServer(MessageReceived, Connection);
+                server = new ServerClient();
+                server.InquireFunctions(MessageReceived, Connection, ClientDisconnection);
                 server.InitNetworkAndStart(25255);
                 labelMode.Text = "Server";
                 labelMode.Visible = true;
@@ -45,7 +46,8 @@ namespace Chat
             {
                 try
                 {
-                    client = new TestClient(MessageReceived, ServerDisconnect);
+                    client = new Client();
+                    client.InquireFunctions(MessageReceived, ServerDisconnect);
                     client.StartClient("82.232.220.135", 25255);
                     labelMode.Text = "Client";
                     labelMode.Visible = true;
@@ -88,11 +90,11 @@ namespace Chat
             }
         }
 
-        private void ServerDisconnect()
+        private void ServerDisconnect(NetMessage message)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action(ServerDisconnect), new object[] { });
+                Invoke(new Action<NetMessage>(ServerDisconnect), new object[] { });
                 return;
             }
 
@@ -105,26 +107,35 @@ namespace Chat
             mode = 0;
         }
 
-        private void Connection(string information)
+        private void ClientDisconnection(NetMessage message)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action<string>(Connection), new object[] { information });
+                Invoke(new Action<NetMessage>(ClientDisconnection), new object[] { message });
                 return;
             }
-
-            AddMessage("Connection of " + information, 1);
         }
 
-        private void MessageReceived(string message)
+        private void Connection(NetMessage message)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action<string>(MessageReceived), new object[] { message });
+                Invoke(new Action<NetMessage>(Connection), new object[] { message });
                 return;
             }
 
-            AddMessage(message, 3 - mode);
+            AddMessage("Connection of " + message.Author, 1);
+        }
+
+        private void MessageReceived(NetMessage message)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<NetMessage>(MessageReceived), new object[] { message });
+                return;
+            }
+            Console.WriteLine(message);
+            AddMessage(message.Message, 3 - mode);
         }
 
         private void AddMessage(string message, int mode)

@@ -8,7 +8,7 @@ using System.Net;
 
 namespace Chat
 {
-    class TestServer
+    class ServerClient
     {
         public static int BUFFER_SIZE = 4096;
 
@@ -21,16 +21,25 @@ namespace Chat
         bool running;
         public bool Connected { get; private set; }
 
-        Action<string> receivedMessageMethod;
-        Action<string> connection;
+        Action<NetMessage> receivedMessage;
+        Action<NetMessage> connection;
+        Action<NetMessage> disconnection;
 
-        public TestServer(Action<string> receivedMessageMethod, Action<string> connection)
+        public List<string> ConnectedPeople { get; private set; }
+
+        public ServerClient()
         {
             running = false;
             Connected = false;
+        }
 
-            this.receivedMessageMethod = receivedMessageMethod;
+        public void InquireFunctions(Action<NetMessage> receivedMessage,
+                                    Action<NetMessage> connection,
+                                    Action<NetMessage> disconnection)
+        {
+            this.receivedMessage = receivedMessage;
             this.connection = connection;
+            this.disconnection = disconnection;
         }
 
         public void InitNetworkAndStart(int port)
@@ -46,7 +55,7 @@ namespace Chat
             running = true;
         }
 
-        ~TestServer()
+        ~ServerClient()
         {
             if (running) socket.Stop();
         }
@@ -55,9 +64,12 @@ namespace Chat
         {
             client = socket.EndAcceptTcpClient(ar);
             Console.WriteLine("Connection from " + client.Client.RemoteEndPoint);
-            connection(client.Client.RemoteEndPoint + "");
+            connection(
+                new NetMessage(
+                    (client.Client.RemoteEndPoint + "").Split(':')[0]
+                    + "#" + DateTime.Now + "#connection"
+                    ));
             stream = client.GetStream();
-
 
             stream.BeginRead(receiveBuffer, 0, BUFFER_SIZE, MessageReceived, null);
 
@@ -76,16 +88,16 @@ namespace Chat
 
                 byte[] data = new byte[byteLenght];
                 Array.Copy(receiveBuffer, data, byteLenght);
+                NetMessage message = new NetMessage(Encoding.UTF8.GetString(data, 0, byteLenght));
 
-                string message = Encoding.UTF8.GetString(data, 0, byteLenght);
-
-                if (message.Equals("#!stop!#"))
+                if (message.MessageEquals("#!stop!#"))
                 {
                     socket.BeginAcceptTcpClient(new AsyncCallback(TcpConnectionCallback), null);
+                    disconnection(message);
                     Connected = false;
                 } else
                 {
-                    receivedMessageMethod(message);
+                    receivedMessage(message);
                     stream.BeginRead(receiveBuffer, 0, BUFFER_SIZE, MessageReceived, null);
                 }
             }
@@ -99,7 +111,9 @@ namespace Chat
         {
             if (!running || !Connected) return;
 
-            byte[] data = Encoding.UTF8.GetBytes(message);
+            NetMessage mes = new NetMessage("s#" + DateTime.Now + "#" + message);
+            Console.WriteLine("send" + mes);
+            byte[] data = mes.ToByteArrayUTF8();
             stream.Write(data, 0, data.Length);
         }
 
